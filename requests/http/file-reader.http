@@ -1,0 +1,18 @@
+### Consulta el directorio recibido y lee el archivo enviado
+// El parámetro de consulta "directory" es opcional y al no mandarse se asigna el valor vacío que hace referencia a si mismo.
+
+### Consulta correcta...
+GET http://localhost:8080/self-service/file-content?directory=&fileName=HELP.md
+Accept: application/json
+
+### Consulta sin archivo
+GET http://localhost:8080/self-service/file-content?directory=noDir&fileName=
+Accept: application/json
+
+### Consulta con nombre de archivo incompleto
+GET http://localhost:8080/self-service/file-content?directory=noDir&fileName=HELP
+Accept: application/json
+
+### Consulta con nombre de archivo incompleto
+GET http://localhost:8080/self-service/file-content?directory=noDir&fileName=HELP
+Accept: application/json

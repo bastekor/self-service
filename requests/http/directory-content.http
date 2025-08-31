@@ -1,0 +1,11 @@
+### Consulta del contenido del directorio.
+// El parámetro de consulta "directory" es opcional y al no mandarse se asigna el valor vacío que hace referencia a si mismo.
+
+### Consulta correcta...
+GET http://localhost:8080/self-service/directory-content
+Accept: application/json
+
+### Consulta incorrecta
+GET http://localhost:8080/self-service/directory-content?directory=nodir
+Accept: application/json
+###

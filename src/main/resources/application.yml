@@ -1,0 +1,37 @@
+server:
+  port: 8080
+  servlet:
+#    context-path: /@project.artifactId@
+    encoding:
+      charset: UTF-8
+spring:
+  application:
+    name: @project.artifactId@
+# Configuración de Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+    env:
+      show-values: always
+    configprops:
+      show-values: always
+  info:
+    env:
+      enabled: true
+    build:
+      enabled: true
+    git:
+      enabled: true
+# Información de la aplicación
+info:
+  app:
+    description: @project.description@
+    package: @project.groupId@
+    name: @project.artifactId@
+    version: @project.version@
