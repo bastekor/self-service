@@ -25,7 +25,9 @@ import java.util.Comparator;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static mx.bastekor.selfservice.util.Utils.notificationList;
+import static mx.bastekor.selfservice.util.ApiResponseFactory.error;
+import static mx.bastekor.selfservice.util.ApiResponseFactory.success;
+import static mx.bastekor.selfservice.util.ApiResponseFactory.withNotification;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CREATED;
@@ -54,19 +56,20 @@ public class FileManagerServiceImpl implements FileManagerService {
      */
     @Override
     public ServiceResult<DirectoryContentResponse> getDirectoryContent(String directory) {
+        log.info("Listing directory content. directory={}", directory);
         ApiResponse<DirectoryContentResponse> response = new ApiResponse<>();
         Path path;
         try {
             path = resolveSafePath(directory);
         } catch (SecurityException ex) {
             log.warn("Ruta fuera del root permitido: {}", directory);
-            response.setNotifications(notificationList("403.1", "Ruta fuera del directorio permitido."));
+            response = withNotification(null, "403.1", "Ruta fuera del directorio permitido.");
             return ServiceResult.of(response, FORBIDDEN);
         }
 
         if (!Files.exists(path)) {
             log.error("Directory does not exist: {}", directory);
-            response.setNotifications(notificationList("DIRECTORY_LISTED", "No existe el directorio"));
+            response = withNotification(null, "DIRECTORY_LISTED", "No existe el directorio");
             return ServiceResult.of(response, BAD_REQUEST);
         }
 
@@ -79,12 +82,11 @@ public class FileManagerServiceImpl implements FileManagerService {
                     directoryContentResponse.addFile(buildEntry(path1, FileSystemEntryType.FILE));
                 }
             });
-            response.setData(directoryContentResponse);
-            response.setNotifications(notificationList("DIRECTORY_LISTED", "Directorio listado correctamente"));
+            response = withNotification(directoryContentResponse, "DIRECTORY_LISTED", "Directorio listado correctamente");
             return ServiceResult.of(response, HttpStatus.OK);
         } catch (IOException ioException) {
             log.error("Error reading directory content", ioException);
-            response.setNotifications(notificationList("DIRECTORY_LISTED", "Error al listar el directorio: " + ioException.getMessage()));
+            response = withNotification(null, "DIRECTORY_LISTED", "Error al listar el directorio: " + ioException.getMessage());
             return ServiceResult.of(response, INTERNAL_SERVER_ERROR);
         }
     }
@@ -223,9 +225,10 @@ public class FileManagerServiceImpl implements FileManagerService {
      */
     @Override
     public FileContentResult getFileContent(String directory, String fileName) {
+        log.info("Getting file content. directory={}, fileName={}", directory, fileName);
         if (fileName == null || fileName.trim().isEmpty()) {
             return FileContentResult.error(
-                    new ApiResponse<>(null, notificationList("400.1", "El nombre del archivo no puede ser nulo o vacío.")),
+                    error("400.1", "El nombre del archivo no puede ser nulo o vacio."),
                     BAD_REQUEST);
         }
 
@@ -235,13 +238,13 @@ public class FileManagerServiceImpl implements FileManagerService {
 
             if (!resource.exists()) {
                 return FileContentResult.error(
-                    new ApiResponse<>(null, notificationList("400.2", "El archivo o directorio no existe.")),
+                    error("400.2", "El archivo o directorio no existe."),
                     BAD_REQUEST);
             }
 
             if (!resource.isReadable()) {
                 return FileContentResult.error(
-                        new ApiResponse<>(null, notificationList("500.1", "El archivo no tiene permisos de lectura.")),
+                        error("500.1", "El archivo no tiene permisos de lectura."),
                         INTERNAL_SERVER_ERROR);
             }
 
@@ -252,11 +255,11 @@ public class FileManagerServiceImpl implements FileManagerService {
             return FileContentResult.success(resource, contentType, resource.getFilename());
         } catch (SecurityException ex) {
             return FileContentResult.error(
-                    new ApiResponse<>(null, notificationList("403.1", "Ruta fuera del directorio permitido.")),
+                    error("403.1", "Ruta fuera del directorio permitido."),
                     FORBIDDEN);
         } catch (IOException ioException) {
             return FileContentResult.error(
-                    new ApiResponse<>(null, notificationList("500.2", "Error leyendo el contenido del archivo.")),
+                    error("500.2", "Error leyendo el contenido del archivo."),
                     INTERNAL_SERVER_ERROR);
         }
     }
@@ -269,20 +272,21 @@ public class FileManagerServiceImpl implements FileManagerService {
      */
     @Override
     public ServiceResult<String> createDirectory(String directory) {
+        log.info("Creating directory. directory={}", directory);
         try {
             Path path = resolveSafePath(directory);
             Files.createDirectory(path);
             return ServiceResult.of(
-                    new ApiResponse<>("Directorio creado o actualizado, según sea el caso", notificationList()),
+                    success("Directorio creado o actualizado, segun sea el caso"),
                     CREATED);
         } catch (SecurityException ex) {
             return ServiceResult.of(
-                    new ApiResponse<>(null, notificationList("403.1", "Ruta fuera del directorio permitido.")),
+                    error("403.1", "Ruta fuera del directorio permitido."),
                     FORBIDDEN);
         } catch (Exception exception) {
             log.error("Error creating directory, message :: {}", exception.getMessage(), exception);
             return ServiceResult.of(
-                    new ApiResponse<>(null, notificationList("500.1", "Error al crear el directorio")),
+                    error("500.1", "Error al crear el directorio"),
                     INTERNAL_SERVER_ERROR);
         }
     }
@@ -296,15 +300,16 @@ public class FileManagerServiceImpl implements FileManagerService {
      */
     @Override
     public ServiceResult<String> createFile(MultipartFile file, String directory) {
+        log.info("Creating file. directory={}, originalName={}", directory, file != null ? file.getOriginalFilename() : null);
         if (file == null) {
             return ServiceResult.of(
-                    new ApiResponse<>(null, notificationList("400.1", "Sin documento.")),
+                    error("400.1", "Sin documento."),
                     BAD_REQUEST);
         }
 
         if (isBlank(file.getOriginalFilename())) {
             return ServiceResult.of(
-                    new ApiResponse<>(null, notificationList("400.2", "No hay nombre para el documento.")),
+                    error("400.2", "No hay nombre para el documento."),
                     BAD_REQUEST);
         }
 
@@ -313,15 +318,15 @@ public class FileManagerServiceImpl implements FileManagerService {
             Path path = resolveSafePath(directory, file.getOriginalFilename());
             Files.write(path, bytes);
             return ServiceResult.of(
-                    new ApiResponse<>("Documento creado/actualizado, según sea el caso.", notificationList()),
+                    success("Documento creado/actualizado, segun sea el caso."),
                     CREATED);
         } catch (SecurityException ex) {
             return ServiceResult.of(
-                    new ApiResponse<>(null, notificationList("403.1", "Ruta fuera del directorio permitido.")),
+                    error("403.1", "Ruta fuera del directorio permitido."),
                     FORBIDDEN);
         } catch (Exception exception) {
             return ServiceResult.of(
-                    new ApiResponse<>(null, notificationList("500.1", "Error al crear el archivo.")),
+                    error("500.1", "Error al crear el archivo."),
                     INTERNAL_SERVER_ERROR);
         }
     }
@@ -335,15 +340,16 @@ public class FileManagerServiceImpl implements FileManagerService {
      */
     @Override
     public ServiceResult<String> updateDirectory(String oldName, String newName) {
+        log.info("Renaming directory. oldName={}, newName={}", oldName, newName);
         if (isBlank(oldName)) {
             return ServiceResult.of(
-                    new ApiResponse<>(null, notificationList("400.1", "El actual nombre del directorio es requerido.")),
+                    error("400.1", "El actual nombre del directorio es requerido."),
                     BAD_REQUEST);
         }
 
         if (isBlank(newName)) {
             return ServiceResult.of(
-                    new ApiResponse<>(null, notificationList("400.2", "El nuevo nombre del directorio es requerido.")),
+                    error("400.2", "El nuevo nombre del directorio es requerido."),
                     BAD_REQUEST);
         }
 
@@ -352,26 +358,26 @@ public class FileManagerServiceImpl implements FileManagerService {
             Path newDir = resolveSafePath(newName);
             if (!Files.exists(oldDir) || !Files.isDirectory(oldDir)) {
                 return ServiceResult.of(
-                        new ApiResponse<>(null, notificationList("400.3", "El directorio a renombrar no existe.")),
+                        error("400.3", "El directorio a renombrar no existe."),
                         BAD_REQUEST);
             }
             if (Files.exists(newDir)) {
                 return ServiceResult.of(
-                        new ApiResponse<>(null, notificationList("400.4", "Ya existe un directorio con el nuevo nombre.")),
+                        error("400.4", "Ya existe un directorio con el nuevo nombre."),
                         BAD_REQUEST);
             }
             Files.move(oldDir, newDir);
-            ApiResponse<String> response = new ApiResponse<>(null,
-                    notificationList("UPDATED", "Directorio renombrado de '" + oldName + "' a '" + newName + "'"));
+            ApiResponse<String> response = withNotification(null, "UPDATED",
+                    "Directorio renombrado de '" + oldName + "' a '" + newName + "'");
             return ServiceResult.of(response, HttpStatus.OK);
         } catch (SecurityException ex) {
             return ServiceResult.of(
-                    new ApiResponse<>(null, notificationList("403.1", "Ruta fuera del directorio permitido.")),
+                    error("403.1", "Ruta fuera del directorio permitido."),
                     FORBIDDEN);
         } catch (Exception ex) {
             log.error("Error renombrando directorio", ex);
             return ServiceResult.of(
-                    new ApiResponse<>(null, notificationList("500.2", "Error al renombrar el directorio: " + ex.getMessage())),
+                    error("500.2", "Error al renombrar el directorio: " + ex.getMessage()),
                     INTERNAL_SERVER_ERROR);
         }
     }
@@ -386,12 +392,13 @@ public class FileManagerServiceImpl implements FileManagerService {
      */
     @Override
     public ServiceResult<String> delete(String type, String directory, String name) {
+        log.info("Deleting entry. type={}, directory={}, name={}", type, directory, name);
         try {
             Path path = resolveSafePath(directory, name);
 
             if (!Files.exists(path)) {
                 return ServiceResult.of(
-                        new ApiResponse<>(null, notificationList("404.1", "No se encontró el " + type + ": " + name)),
+                        error("404.1", "No se encontro el " + type + ": " + name),
                         NOT_FOUND);
             }
 
@@ -399,14 +406,14 @@ public class FileManagerServiceImpl implements FileManagerService {
             if ("file".equalsIgnoreCase(type)) {
                 if (!Files.isRegularFile(path)) {
                     return ServiceResult.of(
-                            new ApiResponse<>(null, notificationList("400.2", "La ruta especificada no es un archivo")),
+                            error("400.2", "La ruta especificada no es un archivo"),
                             BAD_REQUEST);
                 }
                 deleted = Files.deleteIfExists(path);
             } else if ("directory".equalsIgnoreCase(type)) {
                 if (!Files.isDirectory(path)) {
                     return ServiceResult.of(
-                            new ApiResponse<>(null, notificationList("400.3", "La ruta especificada no es un directorio")),
+                            error("400.3", "La ruta especificada no es un directorio"),
                             BAD_REQUEST);
                 }
                 Files.walk(path)
@@ -422,36 +429,35 @@ public class FileManagerServiceImpl implements FileManagerService {
                 deleted = true;
             } else {
                 return ServiceResult.of(
-                        new ApiResponse<>(null, notificationList("400.4", "Tipo no válido. Debe ser 'file' o 'directory'")),
+                        error("400.4", "Tipo no valido. Debe ser 'file' o 'directory'"),
                         BAD_REQUEST);
             }
 
             if (!deleted) {
                 return ServiceResult.of(
-                        new ApiResponse<>(null, notificationList("500.1", "No se pudo eliminar el " + type)),
+                        error("500.1", "No se pudo eliminar el " + type),
                         INTERNAL_SERVER_ERROR);
             }
 
             return ServiceResult.of(
-                    new ApiResponse<>(type + " eliminado: " + name,
-                            notificationList("DELETED", type.substring(0, 1).toUpperCase() + type.substring(1)
-                                    + " eliminado correctamente")),
+                    withNotification(type + " eliminado: " + name, "DELETED",
+                            type.substring(0, 1).toUpperCase() + type.substring(1) + " eliminado correctamente"),
                     HttpStatus.OK);
 
         } catch (SecurityException e) {
             log.error("Error de seguridad al eliminar {}: {}", type, name, e);
             return ServiceResult.of(
-                    new ApiResponse<>(null, notificationList("403", "Acceso denegado: " + e.getMessage())),
+                    error("403", "Acceso denegado: " + e.getMessage()),
                     HttpStatus.FORBIDDEN);
         } catch (IOException e) {
             log.error("Error de I/O al eliminar {}: {}", type, name, e);
             return ServiceResult.of(
-                    new ApiResponse<>(null, notificationList("500.2", "Error al eliminar " + type + ": " + e.getMessage())),
+                    error("500.2", "Error al eliminar " + type + ": " + e.getMessage()),
                     INTERNAL_SERVER_ERROR);
         } catch (Exception e) {
             log.error("Error inesperado al eliminar {}: {}", type, name, e);
             return ServiceResult.of(
-                    new ApiResponse<>(null, notificationList("500.3", "Error inesperado al eliminar " + type + ": " + e.getMessage())),
+                    error("500.3", "Error inesperado al eliminar " + type + ": " + e.getMessage()),
                     INTERNAL_SERVER_ERROR);
         }
     }

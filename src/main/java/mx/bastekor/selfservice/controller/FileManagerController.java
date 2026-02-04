@@ -2,11 +2,15 @@ package mx.bastekor.selfservice.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
-import mx.bastekor.selfservice.model.ApiResponse;
 import mx.bastekor.selfservice.model.DirectoryContentResponse;
 import mx.bastekor.selfservice.service.FileContentResult;
 import mx.bastekor.selfservice.service.FileManagerService;
@@ -56,8 +60,23 @@ public class FileManagerController {
      */
     @GetMapping(DIRECTORY_CONTENT)
     @Operation(summary = "List directory content", description = "Regresa archivos y carpetas del directorio indicado.")
-    public ResponseEntity<ApiResponse<DirectoryContentResponse>> getDirectoryContent(
-            @Parameter(description = "Ruta del directorio a listar")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad request",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class),
+                            examples = @ExampleObject(value = "{\"data\":null,\"notifications\":[{\"code\":\"400.1\",\"description\":\"Validacion fallida.\",\"timestamp\":\"2025-01-01T00:00:00.000Z\"}]}"))),
+            @ApiResponse(responseCode = "403", description = "Forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "500", description = "Server error",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class)))
+    })
+    public ResponseEntity<mx.bastekor.selfservice.model.ApiResponse<DirectoryContentResponse>> getDirectoryContent(
+            @Parameter(description = "Ruta del directorio a listar", schema = @Schema(minLength = 0))
             @RequestParam(defaultValue = EMPTY) String directory) {
         ServiceResult<DirectoryContentResponse> result = fileManagerService.getDirectoryContent(directory);
         return ResponseEntity.status(result.getStatus()).body(result.getBody());
@@ -72,10 +91,23 @@ public class FileManagerController {
      */
     @GetMapping(FILE_CONTENT)
     @Operation(summary = "Get file content", description = "Descarga el contenido de un archivo.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK",
+                    content = @Content(mediaType = "application/octet-stream")),
+            @ApiResponse(responseCode = "400", description = "Bad request",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "500", description = "Server error",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class)))
+    })
     public ResponseEntity<?> getFileContent(
-            @Parameter(description = "Ruta base del archivo")
+            @Parameter(description = "Ruta base del archivo", schema = @Schema(minLength = 0))
             @RequestParam(defaultValue = EMPTY) String directory,
-            @Parameter(description = "Nombre del archivo")
+            @Parameter(description = "Nombre del archivo", schema = @Schema(minLength = 1))
             @RequestParam @NotBlank String fileName) {
         FileContentResult result = fileManagerService.getFileContent(directory, fileName);
         if (!result.isSuccess()) {
@@ -95,7 +127,21 @@ public class FileManagerController {
      */
     @PostMapping(CREATE_DIRECTORY)
     @Operation(summary = "Create directory", description = "Crea un directorio en la ruta indicada.")
-    public ResponseEntity<ApiResponse<String>> createDirectory(
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Created",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad request",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "500", description = "Server error",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class)))
+    })
+    public ResponseEntity<mx.bastekor.selfservice.model.ApiResponse<String>> createDirectory(
             @RequestParam @NotBlank String directory) {
         ServiceResult<String> result = fileManagerService.createDirectory(directory);
         return ResponseEntity.status(result.getStatus()).body(result.getBody());
@@ -110,7 +156,21 @@ public class FileManagerController {
      */
     @PostMapping(CREATE_FILE)
     @Operation(summary = "Create file", description = "Crea o reemplaza un archivo en el directorio indicado.")
-    public ResponseEntity<ApiResponse<String>> createFile(
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Created",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad request",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "500", description = "Server error",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class)))
+    })
+    public ResponseEntity<mx.bastekor.selfservice.model.ApiResponse<String>> createFile(
             @RequestPart @NotNull MultipartFile file,
             @RequestParam @NotBlank String directory) {
         ServiceResult<String> result = fileManagerService.createFile(file, directory);
@@ -126,7 +186,21 @@ public class FileManagerController {
      */
     @PutMapping(UPDATE_DIRECTORY)
     @Operation(summary = "Rename directory", description = "Renombra un directorio existente.")
-    public ResponseEntity<ApiResponse<String>> update(
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad request",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "500", description = "Server error",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class)))
+    })
+    public ResponseEntity<mx.bastekor.selfservice.model.ApiResponse<String>> update(
             @RequestParam @NotBlank String oldName,
             @RequestParam @NotBlank String newName) {
         ServiceResult<String> result = fileManagerService.updateDirectory(oldName, newName);
@@ -143,7 +217,24 @@ public class FileManagerController {
      */
     @DeleteMapping(DELETE_BY_TYPE)
     @Operation(summary = "Delete file or directory", description = "Elimina un archivo o directorio por tipo.")
-    public ResponseEntity<ApiResponse<String>> delete(
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "OK",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad request",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class))),
+            @ApiResponse(responseCode = "500", description = "Server error",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = mx.bastekor.selfservice.model.ApiResponse.class)))
+    })
+    public ResponseEntity<mx.bastekor.selfservice.model.ApiResponse<String>> delete(
             @PathVariable @NotBlank String type,
             @RequestParam @NotBlank String directory,
             @RequestParam @NotBlank String name) {

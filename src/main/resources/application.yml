@@ -4,12 +4,21 @@ server:
 #    context-path: /@project.artifactId@
     encoding:
       charset: UTF-8
+  tomcat:
+    connection-timeout: 20s
 spring:
   application:
     name: @project.artifactId@
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
 app:
   fs:
     root: ${user.home}
+logging:
+  level:
+    mx.bastekor.selfservice: INFO
 # Configuración de Actuator
 management:
   endpoints:
