@@ -31,10 +31,19 @@ import static org.springframework.http.HttpStatus.CREATED;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
+/**
+ * Default implementation for file system operations.
+ */
 @Slf4j
 @Service
 public class FileManagerServiceImpl implements FileManagerService {
 
+    /**
+     * Lists directory content and builds metadata for each entry.
+     *
+     * @param directory directory path.
+     * @return result with directory content or error notifications.
+     */
     @Override
     public ServiceResult<DirectoryContentResponse> getDirectoryContent(String directory) {
         ApiResponse<DirectoryContentResponse> response = new ApiResponse<>();
@@ -65,6 +74,13 @@ public class FileManagerServiceImpl implements FileManagerService {
         }
     }
 
+    /**
+     * Builds metadata for a file system entry.
+     *
+     * @param path entry path.
+     * @param type entry type.
+     * @return populated DTO.
+     */
     private FileSystemEntryDto buildEntry(Path path, FileSystemEntryType type) {
         String name = path.getFileName().toString();
         String extension = FileSystemEntryType.FILE.equals(type) ? getExtension(name) : null;
@@ -111,6 +127,12 @@ public class FileManagerServiceImpl implements FileManagerService {
                 hidden);
     }
 
+    /**
+     * Formats a file timestamp to ISO-8601 with offset.
+     *
+     * @param fileTime time to format.
+     * @return formatted time or null.
+     */
     private String formatFileTime(FileTime fileTime) {
         if (fileTime == null) {
             return null;
@@ -119,6 +141,12 @@ public class FileManagerServiceImpl implements FileManagerService {
                 fileTime.toInstant().atZone(ZoneId.systemDefault()));
     }
 
+    /**
+     * Formats POSIX permissions if available.
+     *
+     * @param path path to read.
+     * @return POSIX permissions or null when unsupported.
+     */
     private String formatPermissions(Path path) {
         try {
             Set<PosixFilePermission> perms = Files.getPosixFilePermissions(path);
@@ -128,6 +156,12 @@ public class FileManagerServiceImpl implements FileManagerService {
         }
     }
 
+    /**
+     * Extracts the extension from a file name.
+     *
+     * @param name file name.
+     * @return extension without dot or null.
+     */
     private String getExtension(String name) {
         int index = name.lastIndexOf('.');
         if (index <= 0 || index == name.length() - 1) {
@@ -136,6 +170,13 @@ public class FileManagerServiceImpl implements FileManagerService {
         return name.substring(index + 1);
     }
 
+    /**
+     * Reads a file as a Spring Resource.
+     *
+     * @param directory base directory.
+     * @param fileName  file name.
+     * @return file content result.
+     */
     @Override
     public FileContentResult getFileContent(String directory, String fileName) {
         if (fileName == null || fileName.trim().isEmpty()) {
@@ -172,6 +213,12 @@ public class FileManagerServiceImpl implements FileManagerService {
         }
     }
 
+    /**
+     * Creates a new directory.
+     *
+     * @param directory directory path.
+     * @return service result with status.
+     */
     @Override
     public ServiceResult<String> createDirectory(String directory) {
         try {
@@ -188,6 +235,13 @@ public class FileManagerServiceImpl implements FileManagerService {
         }
     }
 
+    /**
+     * Creates or replaces a file.
+     *
+     * @param file      file content.
+     * @param directory destination directory.
+     * @return service result with status.
+     */
     @Override
     public ServiceResult<String> createFile(MultipartFile file, String directory) {
         if (file == null) {
@@ -216,6 +270,13 @@ public class FileManagerServiceImpl implements FileManagerService {
         }
     }
 
+    /**
+     * Renames a directory.
+     *
+     * @param oldName current directory name.
+     * @param newName new directory name.
+     * @return service result with status.
+     */
     @Override
     public ServiceResult<String> updateDirectory(String oldName, String newName) {
         if (isBlank(oldName)) {
@@ -256,6 +317,14 @@ public class FileManagerServiceImpl implements FileManagerService {
         }
     }
 
+    /**
+     * Deletes a file or directory.
+     *
+     * @param type      "file" or "directory".
+     * @param directory base directory.
+     * @param name      entry name.
+     * @return service result with status.
+     */
     @Override
     public ServiceResult<String> delete(String type, String directory, String name) {
         try {

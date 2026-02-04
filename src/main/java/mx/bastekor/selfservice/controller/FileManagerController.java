@@ -1,5 +1,8 @@
 package mx.bastekor.selfservice.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 import mx.bastekor.selfservice.model.ApiResponse;
 import mx.bastekor.selfservice.model.DirectoryContentResponse;
@@ -29,23 +32,46 @@ import static mx.bastekor.selfservice.constants.ApiPaths.UPDATE_DIRECTORY;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.springframework.http.HttpHeaders.CONTENT_DISPOSITION;
 
+/**
+ * REST controller for file system operations.
+ */
 @RestController
 @AllArgsConstructor
 @RequestMapping(BASE)
+@Tag(name = "File manager", description = "Operaciones para directorios y archivos")
 public class FileManagerController {
 
+    /** Service that encapsulates file system operations. */
     private final FileManagerService fileManagerService;
 
+    /**
+     * Lists files and folders for a given directory path.
+     *
+     * @param directory directory path to list.
+     * @return response with files and folders metadata.
+     */
     @GetMapping(DIRECTORY_CONTENT)
+    @Operation(summary = "List directory content", description = "Regresa archivos y carpetas del directorio indicado.")
     public ResponseEntity<ApiResponse<DirectoryContentResponse>> getDirectoryContent(
+            @Parameter(description = "Ruta del directorio a listar")
             @RequestParam(defaultValue = EMPTY) String directory) {
         ServiceResult<DirectoryContentResponse> result = fileManagerService.getDirectoryContent(directory);
         return ResponseEntity.status(result.getStatus()).body(result.getBody());
     }
 
+    /**
+     * Retrieves the content of a file as a downloadable resource.
+     *
+     * @param directory base directory path.
+     * @param fileName  file name to retrieve.
+     * @return file content or error payload.
+     */
     @GetMapping(FILE_CONTENT)
+    @Operation(summary = "Get file content", description = "Descarga el contenido de un archivo.")
     public ResponseEntity<?> getFileContent(
+            @Parameter(description = "Ruta base del archivo")
             @RequestParam(defaultValue = EMPTY) String directory,
+            @Parameter(description = "Nombre del archivo")
             @RequestParam String fileName) {
         FileContentResult result = fileManagerService.getFileContent(directory, fileName);
         if (!result.isSuccess()) {
@@ -57,26 +83,58 @@ public class FileManagerController {
                 .body(result.getResource());
     }
 
+    /**
+     * Creates a directory on the file system.
+     *
+     * @param directory directory path to create.
+     * @return creation response.
+     */
     @PostMapping(CREATE_DIRECTORY)
+    @Operation(summary = "Create directory", description = "Crea un directorio en la ruta indicada.")
     public ResponseEntity<ApiResponse<String>> createDirectory(@RequestParam String directory) {
         ServiceResult<String> result = fileManagerService.createDirectory(directory);
         return ResponseEntity.status(result.getStatus()).body(result.getBody());
     }
 
+    /**
+     * Creates a file in the provided directory.
+     *
+     * @param file      file content.
+     * @param directory directory where the file will be stored.
+     * @return creation response.
+     */
     @PostMapping(CREATE_FILE)
+    @Operation(summary = "Create file", description = "Crea o reemplaza un archivo en el directorio indicado.")
     public ResponseEntity<ApiResponse<String>> createFile(@RequestPart MultipartFile file,
                                                           @RequestParam String directory) {
         ServiceResult<String> result = fileManagerService.createFile(file, directory);
         return ResponseEntity.status(result.getStatus()).body(result.getBody());
     }
 
+    /**
+     * Renames an existing directory.
+     *
+     * @param oldName current directory name.
+     * @param newName new directory name.
+     * @return update response.
+     */
     @PutMapping(UPDATE_DIRECTORY)
+    @Operation(summary = "Rename directory", description = "Renombra un directorio existente.")
     public ResponseEntity<ApiResponse<String>> update(@RequestParam String oldName, @RequestParam String newName) {
         ServiceResult<String> result = fileManagerService.updateDirectory(oldName, newName);
         return ResponseEntity.status(result.getStatus()).body(result.getBody());
     }
 
+    /**
+     * Deletes a file or directory by type.
+     *
+     * @param type      "file" or "directory".
+     * @param directory base directory.
+     * @param name      name of the entry to delete.
+     * @return deletion response.
+     */
     @DeleteMapping(DELETE_BY_TYPE)
+    @Operation(summary = "Delete file or directory", description = "Elimina un archivo o directorio por tipo.")
     public ResponseEntity<ApiResponse<String>> delete(@PathVariable String type,
                                                       @RequestParam String directory,
                                                       @RequestParam String name) {
