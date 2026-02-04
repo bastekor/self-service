@@ -20,7 +20,7 @@ public final class ApiResponseFactory {
         return new ApiResponse<>(data, notificationList(code, message));
     }
 
-    public static ApiResponse<Void> error(String code, String message) {
+    public static <T> ApiResponse<T> error(String code, String message) {
         return new ApiResponse<>(null, notificationList(code, message));
     }
 }
