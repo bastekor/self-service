@@ -7,6 +7,9 @@ server:
 spring:
   application:
     name: @project.artifactId@
+app:
+  fs:
+    root: ${user.home}
 # Configuración de Actuator
 management:
   endpoints:

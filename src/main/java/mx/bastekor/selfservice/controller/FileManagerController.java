@@ -3,6 +3,8 @@ package mx.bastekor.selfservice.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import mx.bastekor.selfservice.model.ApiResponse;
 import mx.bastekor.selfservice.model.DirectoryContentResponse;
@@ -11,6 +13,7 @@ import mx.bastekor.selfservice.service.FileManagerService;
 import mx.bastekor.selfservice.service.ServiceResult;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,6 +42,7 @@ import static org.springframework.http.HttpHeaders.CONTENT_DISPOSITION;
 @AllArgsConstructor
 @RequestMapping(BASE)
 @Tag(name = "File manager", description = "Operaciones para directorios y archivos")
+@Validated
 public class FileManagerController {
 
     /** Service that encapsulates file system operations. */
@@ -72,7 +76,7 @@ public class FileManagerController {
             @Parameter(description = "Ruta base del archivo")
             @RequestParam(defaultValue = EMPTY) String directory,
             @Parameter(description = "Nombre del archivo")
-            @RequestParam String fileName) {
+            @RequestParam @NotBlank String fileName) {
         FileContentResult result = fileManagerService.getFileContent(directory, fileName);
         if (!result.isSuccess()) {
             return ResponseEntity.status(result.getStatus()).body(result.getError());
@@ -91,7 +95,8 @@ public class FileManagerController {
      */
     @PostMapping(CREATE_DIRECTORY)
     @Operation(summary = "Create directory", description = "Crea un directorio en la ruta indicada.")
-    public ResponseEntity<ApiResponse<String>> createDirectory(@RequestParam String directory) {
+    public ResponseEntity<ApiResponse<String>> createDirectory(
+            @RequestParam @NotBlank String directory) {
         ServiceResult<String> result = fileManagerService.createDirectory(directory);
         return ResponseEntity.status(result.getStatus()).body(result.getBody());
     }
@@ -105,8 +110,9 @@ public class FileManagerController {
      */
     @PostMapping(CREATE_FILE)
     @Operation(summary = "Create file", description = "Crea o reemplaza un archivo en el directorio indicado.")
-    public ResponseEntity<ApiResponse<String>> createFile(@RequestPart MultipartFile file,
-                                                          @RequestParam String directory) {
+    public ResponseEntity<ApiResponse<String>> createFile(
+            @RequestPart @NotNull MultipartFile file,
+            @RequestParam @NotBlank String directory) {
         ServiceResult<String> result = fileManagerService.createFile(file, directory);
         return ResponseEntity.status(result.getStatus()).body(result.getBody());
     }
@@ -120,7 +126,9 @@ public class FileManagerController {
      */
     @PutMapping(UPDATE_DIRECTORY)
     @Operation(summary = "Rename directory", description = "Renombra un directorio existente.")
-    public ResponseEntity<ApiResponse<String>> update(@RequestParam String oldName, @RequestParam String newName) {
+    public ResponseEntity<ApiResponse<String>> update(
+            @RequestParam @NotBlank String oldName,
+            @RequestParam @NotBlank String newName) {
         ServiceResult<String> result = fileManagerService.updateDirectory(oldName, newName);
         return ResponseEntity.status(result.getStatus()).body(result.getBody());
     }
@@ -135,9 +143,10 @@ public class FileManagerController {
      */
     @DeleteMapping(DELETE_BY_TYPE)
     @Operation(summary = "Delete file or directory", description = "Elimina un archivo o directorio por tipo.")
-    public ResponseEntity<ApiResponse<String>> delete(@PathVariable String type,
-                                                      @RequestParam String directory,
-                                                      @RequestParam String name) {
+    public ResponseEntity<ApiResponse<String>> delete(
+            @PathVariable @NotBlank String type,
+            @RequestParam @NotBlank String directory,
+            @RequestParam @NotBlank String name) {
         ServiceResult<String> result = fileManagerService.delete(type, directory, name);
         return ResponseEntity.status(result.getStatus()).body(result.getBody());
     }

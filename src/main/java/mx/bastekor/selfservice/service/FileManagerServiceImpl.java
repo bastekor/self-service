@@ -5,6 +5,7 @@ import mx.bastekor.selfservice.dto.FileSystemEntryDto;
 import mx.bastekor.selfservice.dto.FileSystemEntryType;
 import mx.bastekor.selfservice.model.ApiResponse;
 import mx.bastekor.selfservice.model.DirectoryContentResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpStatus;
@@ -28,6 +29,7 @@ import static mx.bastekor.selfservice.util.Utils.notificationList;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CREATED;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
@@ -38,6 +40,12 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class FileManagerServiceImpl implements FileManagerService {
 
+    private final Path rootPath;
+
+    public FileManagerServiceImpl(@Value("${app.fs.root}") String rootDirectory) {
+        this.rootPath = Paths.get(rootDirectory).toAbsolutePath().normalize();
+    }
+
     /**
      * Lists directory content and builds metadata for each entry.
      *
@@ -47,7 +55,14 @@ public class FileManagerServiceImpl implements FileManagerService {
     @Override
     public ServiceResult<DirectoryContentResponse> getDirectoryContent(String directory) {
         ApiResponse<DirectoryContentResponse> response = new ApiResponse<>();
-        Path path = Paths.get(directory);
+        Path path;
+        try {
+            path = resolveSafePath(directory);
+        } catch (SecurityException ex) {
+            log.warn("Ruta fuera del root permitido: {}", directory);
+            response.setNotifications(notificationList("403.1", "Ruta fuera del directorio permitido."));
+            return ServiceResult.of(response, FORBIDDEN);
+        }
 
         if (!Files.exists(path)) {
             log.error("Directory does not exist: {}", directory);
@@ -171,6 +186,35 @@ public class FileManagerServiceImpl implements FileManagerService {
     }
 
     /**
+     * Resolves a directory path safely against the configured root.
+     *
+     * @param directory directory path, relative to root.
+     * @return normalized safe path.
+     */
+    private Path resolveSafePath(String directory) {
+        Path resolved = isBlank(directory) ? rootPath : rootPath.resolve(directory).normalize();
+        if (!resolved.startsWith(rootPath)) {
+            throw new SecurityException("Ruta fuera del root permitido.");
+        }
+        return resolved;
+    }
+
+    /**
+     * Resolves a file path safely against the configured root.
+     *
+     * @param directory base directory relative to root.
+     * @param name      file or directory name.
+     * @return normalized safe path.
+     */
+    private Path resolveSafePath(String directory, String name) {
+        Path resolved = resolveSafePath(directory).resolve(name).normalize();
+        if (!resolved.startsWith(rootPath)) {
+            throw new SecurityException("Ruta fuera del root permitido.");
+        }
+        return resolved;
+    }
+
+    /**
      * Reads a file as a Spring Resource.
      *
      * @param directory base directory.
@@ -186,13 +230,13 @@ public class FileManagerServiceImpl implements FileManagerService {
         }
 
         try {
-            Path filePath = Paths.get(directory).resolve(fileName).normalize();
+            Path filePath = resolveSafePath(directory, fileName);
             Resource resource = new UrlResource(filePath.toUri());
 
             if (!resource.exists()) {
                 return FileContentResult.error(
-                        new ApiResponse<>(null, notificationList("400.2", "El archivo o directorio no existe.")),
-                        BAD_REQUEST);
+                    new ApiResponse<>(null, notificationList("400.2", "El archivo o directorio no existe.")),
+                    BAD_REQUEST);
             }
 
             if (!resource.isReadable()) {
@@ -206,6 +250,10 @@ public class FileManagerServiceImpl implements FileManagerService {
                 contentType = "application/octet-stream";
             }
             return FileContentResult.success(resource, contentType, resource.getFilename());
+        } catch (SecurityException ex) {
+            return FileContentResult.error(
+                    new ApiResponse<>(null, notificationList("403.1", "Ruta fuera del directorio permitido.")),
+                    FORBIDDEN);
         } catch (IOException ioException) {
             return FileContentResult.error(
                     new ApiResponse<>(null, notificationList("500.2", "Error leyendo el contenido del archivo.")),
@@ -222,11 +270,15 @@ public class FileManagerServiceImpl implements FileManagerService {
     @Override
     public ServiceResult<String> createDirectory(String directory) {
         try {
-            Path path = Paths.get(directory);
+            Path path = resolveSafePath(directory);
             Files.createDirectory(path);
             return ServiceResult.of(
                     new ApiResponse<>("Directorio creado o actualizado, según sea el caso", notificationList()),
                     CREATED);
+        } catch (SecurityException ex) {
+            return ServiceResult.of(
+                    new ApiResponse<>(null, notificationList("403.1", "Ruta fuera del directorio permitido.")),
+                    FORBIDDEN);
         } catch (Exception exception) {
             log.error("Error creating directory, message :: {}", exception.getMessage(), exception);
             return ServiceResult.of(
@@ -258,11 +310,15 @@ public class FileManagerServiceImpl implements FileManagerService {
 
         try {
             byte[] bytes = file.getBytes();
-            Path path = Paths.get(directory, file.getOriginalFilename());
+            Path path = resolveSafePath(directory, file.getOriginalFilename());
             Files.write(path, bytes);
             return ServiceResult.of(
                     new ApiResponse<>("Documento creado/actualizado, según sea el caso.", notificationList()),
                     CREATED);
+        } catch (SecurityException ex) {
+            return ServiceResult.of(
+                    new ApiResponse<>(null, notificationList("403.1", "Ruta fuera del directorio permitido.")),
+                    FORBIDDEN);
         } catch (Exception exception) {
             return ServiceResult.of(
                     new ApiResponse<>(null, notificationList("500.1", "Error al crear el archivo.")),
@@ -292,9 +348,8 @@ public class FileManagerServiceImpl implements FileManagerService {
         }
 
         try {
-            Path parent = Paths.get("").toAbsolutePath();
-            Path oldDir = parent.resolve(oldName);
-            Path newDir = parent.resolve(newName);
+            Path oldDir = resolveSafePath(oldName);
+            Path newDir = resolveSafePath(newName);
             if (!Files.exists(oldDir) || !Files.isDirectory(oldDir)) {
                 return ServiceResult.of(
                         new ApiResponse<>(null, notificationList("400.3", "El directorio a renombrar no existe.")),
@@ -309,6 +364,10 @@ public class FileManagerServiceImpl implements FileManagerService {
             ApiResponse<String> response = new ApiResponse<>(null,
                     notificationList("UPDATED", "Directorio renombrado de '" + oldName + "' a '" + newName + "'"));
             return ServiceResult.of(response, HttpStatus.OK);
+        } catch (SecurityException ex) {
+            return ServiceResult.of(
+                    new ApiResponse<>(null, notificationList("403.1", "Ruta fuera del directorio permitido.")),
+                    FORBIDDEN);
         } catch (Exception ex) {
             log.error("Error renombrando directorio", ex);
             return ServiceResult.of(
@@ -328,7 +387,7 @@ public class FileManagerServiceImpl implements FileManagerService {
     @Override
     public ServiceResult<String> delete(String type, String directory, String name) {
         try {
-            Path path = Paths.get(directory).resolve(name);
+            Path path = resolveSafePath(directory, name);
 
             if (!Files.exists(path)) {
                 return ServiceResult.of(
