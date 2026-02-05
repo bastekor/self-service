@@ -4,6 +4,8 @@ import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import mx.bastekor.selfservice.dto.FileSystemEntryDto;
 import mx.bastekor.selfservice.dto.FileSystemEntryType;
+import mx.bastekor.selfservice.enums.ErrorCode;
+import mx.bastekor.selfservice.exception.BusinessException;
 import mx.bastekor.selfservice.model.ApiResponse;
 import mx.bastekor.selfservice.model.DirectoryContentResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,15 +29,10 @@ import java.util.Comparator;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static mx.bastekor.selfservice.util.ApiResponseFactory.error;
 import static mx.bastekor.selfservice.util.ApiResponseFactory.success;
 import static mx.bastekor.selfservice.util.ApiResponseFactory.withNotification;
 import static org.apache.commons.lang3.StringUtils.isBlank;
-import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CREATED;
-import static org.springframework.http.HttpStatus.FORBIDDEN;
-import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
-import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 /**
  * Default implementation for file system operations.
@@ -68,16 +65,14 @@ public class FileManagerServiceImpl implements FileManagerService {
             path = resolveSafePath(directory);
         } catch (SecurityException ex) {
             log.warn("Ruta fuera del root permitido: {}", directory);
-            response = withNotification(null, "403.1", "Ruta fuera del directorio permitido.");
             incrementCounter("getDirectoryContent", "error");
-            return ServiceResult.of(response, FORBIDDEN);
+            throw new BusinessException(ErrorCode.PATH_OUTSIDE_ROOT, ex);
         }
 
         if (!Files.exists(path)) {
             log.error("Directory does not exist: {}", directory);
-            response = withNotification(null, "DIRECTORY_LISTED", "No existe el directorio");
             incrementCounter("getDirectoryContent", "error");
-            return ServiceResult.of(response, BAD_REQUEST);
+            throw new BusinessException(ErrorCode.DIRECTORY_DOES_NOT_EXIST);
         }
 
         DirectoryContentResponse directoryContentResponse = new DirectoryContentResponse();
@@ -94,9 +89,8 @@ public class FileManagerServiceImpl implements FileManagerService {
             return ServiceResult.of(response, HttpStatus.OK);
         } catch (IOException ioException) {
             log.error("Error reading directory content", ioException);
-            response = withNotification(null, "DIRECTORY_LISTED", "Error al listar el directorio: " + ioException.getMessage());
             incrementCounter("getDirectoryContent", "error");
-            return ServiceResult.of(response, INTERNAL_SERVER_ERROR);
+            throw new BusinessException(ErrorCode.DIRECTORY_LISTED_ERROR, ioException);
         }
     }
 
@@ -247,9 +241,7 @@ public class FileManagerServiceImpl implements FileManagerService {
         log.info("Getting file content. directory={}, fileName={}", directory, fileName);
         if (fileName == null || fileName.trim().isEmpty()) {
             incrementCounter("getFileContent", "error");
-            return FileContentResult.error(
-                    error("400.1", "El nombre del archivo no puede ser nulo o vacio."),
-                    BAD_REQUEST);
+            throw new BusinessException(ErrorCode.NULL_OR_EMPTY_FILENAME);
         }
 
         try {
@@ -258,16 +250,12 @@ public class FileManagerServiceImpl implements FileManagerService {
 
             if (!resource.exists()) {
                 incrementCounter("getFileContent", "error");
-                return FileContentResult.error(
-                    error("400.2", "El archivo o directorio no existe."),
-                    BAD_REQUEST);
+                throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
             }
 
             if (!resource.isReadable()) {
                 incrementCounter("getFileContent", "error");
-                return FileContentResult.error(
-                        error("500.1", "El archivo no tiene permisos de lectura."),
-                        INTERNAL_SERVER_ERROR);
+                throw new BusinessException(ErrorCode.FILE_NO_READ_PERMISSIONS);
             }
 
             String contentType = Files.probeContentType(filePath);
@@ -278,14 +266,10 @@ public class FileManagerServiceImpl implements FileManagerService {
             return FileContentResult.success(resource, contentType, resource.getFilename());
         } catch (SecurityException ex) {
             incrementCounter("getFileContent", "error");
-            return FileContentResult.error(
-                    error("403.1", "Ruta fuera del directorio permitido."),
-                    FORBIDDEN);
+            throw new BusinessException(ErrorCode.PATH_OUTSIDE_ROOT, ex);
         } catch (IOException ioException) {
             incrementCounter("getFileContent", "error");
-            return FileContentResult.error(
-                    error("500.2", "Error leyendo el contenido del archivo."),
-                    INTERNAL_SERVER_ERROR);
+            throw new BusinessException(ErrorCode.ERROR_READING_FILE_CONTENT, ioException);
         }
     }
 
@@ -307,15 +291,11 @@ public class FileManagerServiceImpl implements FileManagerService {
                     CREATED);
         } catch (SecurityException ex) {
             incrementCounter("createDirectory", "error");
-            return ServiceResult.of(
-                    error("403.1", "Ruta fuera del directorio permitido."),
-                    FORBIDDEN);
+            throw new BusinessException(ErrorCode.PATH_OUTSIDE_ROOT, ex);
         } catch (Exception exception) {
             log.error("Error creating directory, message :: {}", exception.getMessage(), exception);
             incrementCounter("createDirectory", "error");
-            return ServiceResult.of(
-                    error("500.1", "Error al crear el directorio"),
-                    INTERNAL_SERVER_ERROR);
+            throw new BusinessException(ErrorCode.ERROR_CREATING_DIRECTORY, exception);
         }
     }
 
@@ -331,16 +311,12 @@ public class FileManagerServiceImpl implements FileManagerService {
         log.info("Creating file. directory={}, originalName={}", directory, file != null ? file.getOriginalFilename() : null);
         if (file == null) {
             incrementCounter("createFile", "error");
-            return ServiceResult.of(
-                    error("400.1", "Sin documento."),
-                    BAD_REQUEST);
+            throw new BusinessException(ErrorCode.MISSING_DOCUMENT);
         }
 
         if (isBlank(file.getOriginalFilename())) {
             incrementCounter("createFile", "error");
-            return ServiceResult.of(
-                    error("400.2", "No hay nombre para el documento."),
-                    BAD_REQUEST);
+            throw new BusinessException(ErrorCode.MISSING_FILENAME);
         }
 
         try {
@@ -353,14 +329,10 @@ public class FileManagerServiceImpl implements FileManagerService {
                     CREATED);
         } catch (SecurityException ex) {
             incrementCounter("createFile", "error");
-            return ServiceResult.of(
-                    error("403.1", "Ruta fuera del directorio permitido."),
-                    FORBIDDEN);
+            throw new BusinessException(ErrorCode.PATH_OUTSIDE_ROOT, ex);
         } catch (Exception exception) {
             incrementCounter("createFile", "error");
-            return ServiceResult.of(
-                    error("500.1", "Error al crear el archivo."),
-                    INTERNAL_SERVER_ERROR);
+            throw new BusinessException(ErrorCode.ERROR_CREATING_FILE, exception);
         }
     }
 
@@ -376,16 +348,12 @@ public class FileManagerServiceImpl implements FileManagerService {
         log.info("Renaming directory. oldName={}, newName={}", oldName, newName);
         if (isBlank(oldName)) {
             incrementCounter("updateDirectory", "error");
-            return ServiceResult.of(
-                    error("400.1", "El actual nombre del directorio es requerido."),
-                    BAD_REQUEST);
+            throw new BusinessException(ErrorCode.CURRENT_DIRECTORY_NAME_REQUIRED);
         }
 
         if (isBlank(newName)) {
             incrementCounter("updateDirectory", "error");
-            return ServiceResult.of(
-                    error("400.2", "El nuevo nombre del directorio es requerido."),
-                    BAD_REQUEST);
+            throw new BusinessException(ErrorCode.NEW_DIRECTORY_NAME_REQUIRED);
         }
 
         try {
@@ -393,15 +361,11 @@ public class FileManagerServiceImpl implements FileManagerService {
             Path newDir = resolveSafePath(newName);
             if (!Files.exists(oldDir) || !Files.isDirectory(oldDir)) {
                 incrementCounter("updateDirectory", "error");
-                return ServiceResult.of(
-                        error("400.3", "El directorio a renombrar no existe."),
-                        BAD_REQUEST);
+                throw new BusinessException(ErrorCode.DIRECTORY_TO_RENAME_NOT_FOUND);
             }
             if (Files.exists(newDir)) {
                 incrementCounter("updateDirectory", "error");
-                return ServiceResult.of(
-                        error("400.4", "Ya existe un directorio con el nuevo nombre."),
-                        BAD_REQUEST);
+                throw new BusinessException(ErrorCode.DIRECTORY_ALREADY_EXISTS);
             }
             Files.move(oldDir, newDir);
             ApiResponse<String> response = withNotification(null, "UPDATED",
@@ -410,15 +374,11 @@ public class FileManagerServiceImpl implements FileManagerService {
             return ServiceResult.of(response, HttpStatus.OK);
         } catch (SecurityException ex) {
             incrementCounter("updateDirectory", "error");
-            return ServiceResult.of(
-                    error("403.1", "Ruta fuera del directorio permitido."),
-                    FORBIDDEN);
+            throw new BusinessException(ErrorCode.PATH_OUTSIDE_ROOT, ex);
         } catch (Exception ex) {
             log.error("Error renombrando directorio", ex);
             incrementCounter("updateDirectory", "error");
-            return ServiceResult.of(
-                    error("500.2", "Error al renombrar el directorio: " + ex.getMessage()),
-                    INTERNAL_SERVER_ERROR);
+            throw new BusinessException(ErrorCode.ERROR_RENAMING_DIRECTORY, ex, ex.getMessage());
         }
     }
 
@@ -438,26 +398,20 @@ public class FileManagerServiceImpl implements FileManagerService {
 
             if (!Files.exists(path)) {
                 incrementCounter("delete", "error");
-                return ServiceResult.of(
-                        error("404.1", "No se encontro el " + type + ": " + name),
-                        NOT_FOUND);
+                throw new BusinessException(ErrorCode.FILE_NOT_FOUND, type, name);
             }
 
             boolean deleted;
             if ("file".equalsIgnoreCase(type)) {
                 if (!Files.isRegularFile(path)) {
                     incrementCounter("delete", "error");
-                    return ServiceResult.of(
-                            error("400.2", "La ruta especificada no es un archivo"),
-                            BAD_REQUEST);
+                    throw new BusinessException(ErrorCode.SPECIFIED_PATH_NOT_FILE);
                 }
                 deleted = Files.deleteIfExists(path);
             } else if ("directory".equalsIgnoreCase(type)) {
                 if (!Files.isDirectory(path)) {
                     incrementCounter("delete", "error");
-                    return ServiceResult.of(
-                            error("400.3", "La ruta especificada no es un directorio"),
-                            BAD_REQUEST);
+                    throw new BusinessException(ErrorCode.SPECIFIED_PATH_NOT_DIRECTORY);
                 }
                 Files.walk(path)
                         .sorted(Comparator.reverseOrder())
@@ -472,16 +426,12 @@ public class FileManagerServiceImpl implements FileManagerService {
                 deleted = true;
             } else {
                 incrementCounter("delete", "error");
-                return ServiceResult.of(
-                        error("400.4", "Tipo no valido. Debe ser 'file' o 'directory'"),
-                        BAD_REQUEST);
+                throw new BusinessException(ErrorCode.INVALID_TYPE);
             }
 
             if (!deleted) {
                 incrementCounter("delete", "error");
-                return ServiceResult.of(
-                        error("500.1", "No se pudo eliminar el " + type),
-                        INTERNAL_SERVER_ERROR);
+                throw new BusinessException(ErrorCode.ERROR_DELETING, type);
             }
 
             incrementCounter("delete", "success");
@@ -493,21 +443,15 @@ public class FileManagerServiceImpl implements FileManagerService {
         } catch (SecurityException e) {
             log.error("Error de seguridad al eliminar {}: {}", type, name, e);
             incrementCounter("delete", "error");
-            return ServiceResult.of(
-                    error("403", "Acceso denegado: " + e.getMessage()),
-                    HttpStatus.FORBIDDEN);
+            throw new BusinessException(ErrorCode.PATH_OUTSIDE_ROOT, e, e.getMessage());
         } catch (IOException e) {
             log.error("Error de I/O al eliminar {}: {}", type, name, e);
             incrementCounter("delete", "error");
-            return ServiceResult.of(
-                    error("500.2", "Error al eliminar " + type + ": " + e.getMessage()),
-                    INTERNAL_SERVER_ERROR);
+            throw new BusinessException(ErrorCode.ERROR_DELETING, e, type, e.getMessage());
         } catch (Exception e) {
             log.error("Error inesperado al eliminar {}: {}", type, name, e);
             incrementCounter("delete", "error");
-            return ServiceResult.of(
-                    error("500.3", "Error inesperado al eliminar " + type + ": " + e.getMessage()),
-                    INTERNAL_SERVER_ERROR);
+            throw new BusinessException(ErrorCode.UNEXPECTED_DELETE_ERROR, e, type, e.getMessage());
         }
     }
 }
