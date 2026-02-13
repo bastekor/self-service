@@ -396,19 +396,27 @@ public class FileManagerServiceImpl implements FileManagerService {
         try {
             Path path = resolveSafePath(directory, name);
 
+            boolean isFile = "file".equalsIgnoreCase(type);
+            boolean isDirectory = "directory".equalsIgnoreCase(type);
+
+            if (!isFile && !isDirectory) {
+                incrementCounter("delete", "error");
+                throw new BusinessException(ErrorCode.INVALID_TYPE);
+            }
+
             if (!Files.exists(path)) {
                 incrementCounter("delete", "error");
                 throw new BusinessException(ErrorCode.FILE_NOT_FOUND, type, name);
             }
 
-            boolean deleted;
-            if ("file".equalsIgnoreCase(type)) {
+            boolean deleted = false;
+            if (isFile) {
                 if (!Files.isRegularFile(path)) {
                     incrementCounter("delete", "error");
                     throw new BusinessException(ErrorCode.SPECIFIED_PATH_NOT_FILE);
                 }
                 deleted = Files.deleteIfExists(path);
-            } else if ("directory".equalsIgnoreCase(type)) {
+            } else if (isDirectory) {
                 if (!Files.isDirectory(path)) {
                     incrementCounter("delete", "error");
                     throw new BusinessException(ErrorCode.SPECIFIED_PATH_NOT_DIRECTORY);
@@ -424,9 +432,6 @@ public class FileManagerServiceImpl implements FileManagerService {
                             }
                         });
                 deleted = true;
-            } else {
-                incrementCounter("delete", "error");
-                throw new BusinessException(ErrorCode.INVALID_TYPE);
             }
 
             if (!deleted) {
@@ -448,6 +453,8 @@ public class FileManagerServiceImpl implements FileManagerService {
             log.error("Error de I/O al eliminar {}: {}", type, name, e);
             incrementCounter("delete", "error");
             throw new BusinessException(ErrorCode.ERROR_DELETING, e, type, e.getMessage());
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Error inesperado al eliminar {}: {}", type, name, e);
             incrementCounter("delete", "error");
